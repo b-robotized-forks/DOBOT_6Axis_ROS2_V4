@@ -1,0 +1,30 @@
+<launch>
+  <arg name="configuration_package" default="cr3_moveit" description="The ROS package where we find the configuration files."/>
+  <let name="controllers_file_path" value="$(find-pkg-share $(var configuration_package))/config/ros2_controllers.yaml"/>
+  <arg name="description_file" default="cr3_robot" description="URDF/XACRO description file with the robot."/>
+
+  <arg name="use_mock_hardware" default="true" description="Whether to use mock hardware or real hardware."/>
+  <arg name="start_rviz" default="true" description="Launch RViz visualization?"/>
+
+  
+  
+  <arg name="robot_ip" default="" description="IP address of the robot."/>
+
+  <let name="robot_description" value="$(command '$(find-exec xacro) $(find-pkg-share $(var configuration_package))/config/$(var description_file).urdf.xacro \
+                                        use_mock_hardware:=$(var use_mock_hardware) \
+                                        robot_ip:=$(var robot_ip)')"/>
+
+  <node pkg="robot_state_publisher" exec="robot_state_publisher" output="both">
+    <param name="robot_description" value="$(var robot_description)"/>
+  </node>
+
+  <node pkg="controller_manager" exec="ros2_control_node" name="controller_manager" output="both">
+    <param name="update_rate" value="250"/>
+    <param from="$(var controllers_file_path)"/>
+  </node>
+
+  <node pkg="controller_manager" exec="spawner" name="joint_state_broadcaster_spawner" output="screen" args="joint_state_broadcaster -c /controller_manager"/>
+
+  <node if="$(var start_rviz)" pkg="rviz2" exec="rviz2" name="rviz2" output="both" args="-d $(find-pkg-share dobot_rviz)/rviz/urdf.rviz --ros-args --log-level fatal"/>
+
+</launch>

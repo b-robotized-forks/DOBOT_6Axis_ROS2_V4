@@ -1,13 +1,21 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:macro name="cr3_robot_ros2_control" params="name initial_positions_file">
-        <xacro:property name="initial_positions" value="${load_yaml(initial_positions_file)['initial_positions']}"/>
+
+    <xacro:macro name="cr3_robot_ros2_control" params="name initial_positions_file use_mock_hardware:=true robot_ip:=''">
+        <xacro:property name="initial_positions" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}"/>
 
         <ros2_control name="${name}" type="system">
             <hardware>
-                <!-- By default, set up controllers for simulation. This won't work on real hardware -->
-                <plugin>mock_components/GenericSystem</plugin>
+                <xacro:if value="${use_mock_hardware}">
+                    <plugin>mock_components/GenericSystem</plugin>
+                </xacro:if>
+                <xacro:unless value="${use_mock_hardware}">
+                    <plugin>dobot_hardware_interface/DobotHardwareInterface</plugin>
+                    <param name="robot_ip">${robot_ip}</param>
+                </xacro:unless>
             </hardware>
+
+            <!-- Joint 1 -->
             <joint name="joint1">
                 <command_interface name="position"/>
                 <state_interface name="position">
@@ -15,6 +23,8 @@
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
+
+            <!-- Joint 2 -->
             <joint name="joint2">
                 <command_interface name="position"/>
                 <state_interface name="position">
@@ -22,6 +32,8 @@
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
+
+            <!-- Joint 3 -->
             <joint name="joint3">
                 <command_interface name="position"/>
                 <state_interface name="position">
@@ -29,6 +41,8 @@
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
+
+            <!-- Joint 4 -->
             <joint name="joint4">
                 <command_interface name="position"/>
                 <state_interface name="position">
@@ -36,6 +50,8 @@
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
+
+            <!-- Joint 5 -->
             <joint name="joint5">
                 <command_interface name="position"/>
                 <state_interface name="position">
@@ -43,6 +59,8 @@
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
+
+            <!-- Joint 6 -->
             <joint name="joint6">
                 <command_interface name="position"/>
                 <state_interface name="position">
@@ -53,4 +71,5 @@
 
         </ros2_control>
     </xacro:macro>
+
 </robot>
