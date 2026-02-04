@@ -1,0 +1,9 @@
+<library path="dobot_hardware_interface">
+  <class name="dobot_hardware_interface/DobotHardwareInterface"
+         type="dobot_hardware_interface::DobotHardwareInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface for Dobot robots.
+    </description>
+  </class>
+</library>
