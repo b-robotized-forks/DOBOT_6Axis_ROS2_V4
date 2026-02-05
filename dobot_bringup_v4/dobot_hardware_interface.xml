@@ -3,7 +3,14 @@
          type="dobot_hardware_interface::DobotHardwareInterface"
          base_class_type="hardware_interface::SystemInterface">
     <description>
-      ros2_control hardware interface for Dobot robots.
+      ros2_control hardware interface for Dobot robots over ServoJ commands.
+    </description>
+  </class>
+  <class name="dobot_hardware_interface_gpio/DobotHardwareInterfaceGPIO"
+         type="dobot_hardware_interface_gpio::DobotHardwareInterfaceGPIO"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface for Dobot robots GPIO.
     </description>
   </class>
 </library>
