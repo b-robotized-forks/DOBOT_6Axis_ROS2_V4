@@ -94,6 +94,21 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
     
     auto data = *commander_->getRealData();
 
+    int retries = 0;
+    while(retries < 10)
+    {
+        data = commander_->getRealData();
+        if(data->len > 0) break;
+        rclcpp::sleep_for(std::chrono::milliseconds(100));
+        retries++;
+    }
+
+    if(retries >= 10)
+    {
+        RCLCPP_ERROR(getLogger(), "Could not get valid RealTimeData for Activation.");
+        hardware_interface::CallbackReturn::ERROR;
+    }
+
     // Check for errors
     if (commander_->isError())
     {
