@@ -15,9 +15,29 @@ constexpr double RAD_TO_DEG = 180.0 / M_PI;
 namespace dobot_hardware_interface
 {
 
+inline void bit_set(uint16_t &state, int index) {
+    state |= (1 << index);
+}
+
+inline void bit_clear(uint16_t &state, int index) {
+    state &= ~(1 << index);
+}
+
+inline bool bit_get(uint16_t state, int index) {
+    return (state >> index) & 1;
+}
+
 hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
     const rclcpp_lifecycle::State & /*previous_state*/)
 {   
+    // Fixed to 125Hz, as per documentation, the RT robot state feedback comes every 8ms = 125Hz
+    // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#message-format
+    if (info_.rw_rate != 125)
+    {
+        RCLCPP_FATAL(getLogger(), "Hardware interface loop rate is %u Hz, but 125 Hz is required!", info_.rw_rate);
+        return hardware_interface::CallbackReturn::ERROR;
+    }
+
     std::string robot_ip;
 
     if (info_.hardware_parameters.count("robot_ip"))
@@ -30,12 +50,21 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
         return hardware_interface::CallbackReturn::ERROR;
     }
 
-    // Fixed to 125Hz, as per documentation, the RT robot state feedback comes every 8ms = 125Hz
-    // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#message-format
-    if (info_.rw_rate != 125)
-    {
-        RCLCPP_FATAL(getLogger(), "Hardware interface loop rate is %u Hz, but 125 Hz is required!", info_.rw_rate);
-        return hardware_interface::CallbackReturn::ERROR;
+    if (info_.hardware_parameters.count("gpio_rw_rate")) {
+        try {
+            gpio_rw_rate_ = std::stod(info_.hardware_parameters.at("gpio_rw_rate"));
+        } catch(const std::invalid_argument& e) {
+            RCLCPP_WARN(getLogger(), "Invalid format for gpio_rw_rate, using default 10.0Hz");
+        }
+    }
+    
+    if (gpio_rw_rate_ > 20.0) {
+        RCLCPP_WARN(getLogger(), "gpio_rw_rate %f Hz exceeds max 20Hz. Clamping to 20Hz.", gpio_rw_rate_);
+        gpio_rw_rate_ = 20.0;
+    }
+    if (gpio_rw_rate_ <= 0.0) {
+        RCLCPP_WARN(getLogger(), "gpio_rw_rate must be positive. Using default 10.0Hz.");
+        gpio_rw_rate_ = 10.0;
     }
 
     try 
@@ -71,11 +100,6 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
 {
     RCLCPP_INFO(getLogger(), "Activating Dobot Hardware Interface...");
     
-    // ROBOT MODES:
-    // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#robotmode
-
-    // Error code descriptions:
-    // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#error-code-descriptions
     int32_t err_id = 0;
 
     // Enable Robot
@@ -97,8 +121,8 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
     int retries = 0;
     while(retries < 10)
     {
-        data = commander_->getRealData();
-        if(data->len > 0) break;
+        data = *commander_->getRealData();
+        if(data.len > 0) break;
         rclcpp::sleep_for(std::chrono::milliseconds(100));
         retries++;
     }
@@ -106,13 +130,13 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
     if(retries >= 10)
     {
         RCLCPP_ERROR(getLogger(), "Could not get valid RealTimeData for Activation.");
-        hardware_interface::CallbackReturn::ERROR;
+        return hardware_interface::CallbackReturn::ERROR;
     }
 
     // Check for errors
-    if (commander_->isError())
+    if (data.robot_mode == 9)
     {
-        RCLCPP_WARNING(getLogger(), "Robot is in ERROR state. Sending ClearError()...");
+        RCLCPP_WARN(getLogger(), "Robot is in ERROR state. Sending ClearError()...");
         if (!commander_->callRosService("ClearError()", err_id)) {
             RCLCPP_ERROR(getLogger(), "Failed to send ClearError() request.");
             return hardware_interface::CallbackReturn::ERROR;
@@ -124,7 +148,7 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
 
         rclcpp::sleep_for(std::chrono::milliseconds(1000));
 
-        if(commander_->isError()){
+        if(commander_->getRealData()->robot_mode == 9){
             RCLCPP_ERROR(getLogger(), "Robot is still in ERROR state. Aborting.");
             return hardware_interface::CallbackReturn::ERROR;
         }
@@ -156,6 +180,21 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
     set_command("joint5/position", data.q_actual[4] * DEG_TO_RAD   );
     set_command("joint6/position", data.q_actual[5] * DEG_TO_RAD   );
 
+    // Sync initial GPIO state
+    // digital_outputs is uint64_t where bit 0 is DO1.
+
+    gpio_command_rt_ = static_cast<uint16_t>(data.digital_outputs & 0xFFFF);
+    for (int i = 0; i < 16; ++i)
+    {
+        double val = (gpio_command_rt_ & (1 << i)) ? 1.0 : 0.0;
+        set_command("DO/" + std::to_string(i + 1), val);
+    }
+    gpio_command_nrt_.store(gpio_command_rt_, std::memory_order_relaxed);
+
+    // Start GPIO thread
+    gpio_nrt_thread_running_ = true;
+    gpio_nrt_thread_ = std::thread(&DobotHardwareInterface::gpio_nrt_thread_func, this);
+
     return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -164,16 +203,18 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_deactivate(
 {
     RCLCPP_INFO(getLogger(), "Deactivating Dobot Hardware Interface...");
     
-    int32_t err_id = 0;
-    RCLCPP_INFO(getLogger(), "Sending Stop() command...");
-    if (!commander_->callRosService("Stop()", err_id)) {
-        RCLCPP_ERROR(getLogger(), "Failed to send Stop() request. Robot might still be active!");
+    gpio_nrt_thread_running_ = false;
+    if (gpio_nrt_thread_.joinable()) {
+        gpio_nrt_thread_.join();
     }
-    if (err_id != 0) {
-        RCLCPP_WARN(getLogger(), "Stop() returned error ID: %d. Robot might still be active!", err_id);
+
+    if (commander_) {
+        int32_t err_id = 0;
+        RCLCPP_INFO(getLogger(), "Sending Stop() command...");
+        commander_->callRosService("Stop()", err_id);
     }
     
-    // We do not reset the commander here, because we want to maintain the connection
+    // We do NOT reset the commander here, because we want to maintain the connection
     // in case of re-activation. The connection is managed in configure/shutdown.
     
     return hardware_interface::CallbackReturn::SUCCESS;
@@ -182,6 +223,11 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_deactivate(
 hardware_interface::CallbackReturn DobotHardwareInterface::on_shutdown(
     const rclcpp_lifecycle::State & /*previous_state*/)
 {
+    gpio_nrt_thread_running_ = false;
+    if (gpio_nrt_thread_.joinable()) {
+        gpio_nrt_thread_.join();
+    }
+
     commander_.reset();
     return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -206,6 +252,7 @@ hardware_interface::return_type DobotHardwareInterface::write(
     if (!commander_->isEnable()) return hardware_interface::return_type::DEACTIVATE;
 
     write_command_ServoJ();
+    write_command_DOGroup();
 
     return hardware_interface::return_type::OK;
 }
@@ -229,6 +276,22 @@ void DobotHardwareInterface::populate_state_interfaces(const RealTimeData& data)
     set_state("joint4/velocity", data.qd_actual[3] * DEG_TO_RAD  );
     set_state("joint5/velocity", data.qd_actual[4] * DEG_TO_RAD  );
     set_state("joint6/velocity", data.qd_actual[5] * DEG_TO_RAD  );
+
+    // Populate DI state
+    uint64_t di_bits = data.digital_input_bits;
+    for (int i = 0; i < 32; ++i)
+    {
+        double val = (di_bits & (1ULL << i)) ? 1.0 : 0.0;
+        set_state("DI/" + std::to_string(i + 1), val);
+    }
+
+    // Populate DO state feedback
+    uint64_t do_bits = data.digital_outputs;
+    for (int i = 0; i < 16; ++i)
+    {
+        double val = (do_bits & (1ULL << i)) ? 1.0 : 0.0;
+        set_state("DO/" + std::to_string(i + 1), val);
+    }
 
     return;
 }
@@ -264,6 +327,94 @@ void DobotHardwareInterface::write_command_ServoJ(){
     commander_->tcpSendServoJ(std::string(cmd_string));
 
     return;
+}
+
+void DobotHardwareInterface::write_command_DOGroup()
+{  
+    // preserve current command
+    uint16_t next_state = gpio_command_rt_;
+
+    // check if any bits should be updated
+    for (int i = 0; i < 16; ++i)
+    {
+        double val = get_command("DO/" + std::to_string(i + 1));
+
+        // If command is valid (not NaN), apply it to our state
+        if (!std::isnan(val))
+        {
+            if (val > 0.5) {
+                bit_set(next_state, i);
+            } else {
+                bit_clear(next_state, i);
+            }
+        }
+        // If NaN, next_state retains bit 'i' from gpio_command_rt_
+    }
+
+    // Only write to nrt member if the desired command changed
+    if (next_state != gpio_command_rt_)
+    {
+        gpio_command_rt_ = next_state;
+        gpio_command_nrt_.store(next_state, std::memory_order_relaxed);
+    }
+}
+
+void DobotHardwareInterface::gpio_nrt_thread_func()
+{
+    // Init thread local history of commands sent
+    uint16_t command_last_sent = gpio_command_nrt_.load(std::memory_order_relaxed);
+
+    rclcpp::Rate rate(gpio_rw_rate_);
+
+    while(gpio_nrt_thread_running_)
+    {
+        uint16_t command_desired = gpio_command_nrt_.load(std::memory_order_relaxed);
+
+        // XOR: which bits changed?
+        uint16_t diff = command_desired ^ command_last_sent;
+        
+        if (diff != 0)
+        {
+            std::stringstream ss;
+            ss << "DOGroup(";
+            
+            for (int i = 0; i < 16; ++i)
+            {   
+                // if bit changed, add to command
+                if (bit_get(diff, i))
+                {
+                    int val = bit_get(command_desired, i);
+                    ss << (i + 1) << "," << val << ",";
+                }
+            }
+
+            // pop the trailing comma
+            std::string cmd_str = ss.str();
+            if (cmd_str.back() == ',') {
+                cmd_str.pop_back();
+            }
+            
+            cmd_str += ")";
+            
+            int32_t err_id = 0;
+            // blocking call! atleast 10ms
+            if (!commander_->callRosService(cmd_str, err_id))
+            {
+                RCLCPP_WARN(getLogger(), "Failed to send GPIO command, retrying next cycle...");
+                
+            }
+            else if (err_id != 0) {
+                RCLCPP_WARN(getLogger(), "DOGroup() returned error ID: %d. Retrying next cycle...", err_id);
+            }
+            else
+            {
+                command_last_sent = command_desired;
+            }
+            
+        }
+
+        rate.sleep();
+    }
 }
 
 } // namespace dobot_hardware_interface

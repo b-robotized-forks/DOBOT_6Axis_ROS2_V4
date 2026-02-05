@@ -59,7 +59,6 @@ target_link_libraries(dobot_driver pthread)
 # ---------------------------------------------------------
 add_library(dobot_hardware_interface SHARED
   src/dobot_hardware_interface.cpp
-  src/dobot_hardware_interface_gpio.cpp
 )
 
 target_include_directories(dobot_hardware_interface PUBLIC

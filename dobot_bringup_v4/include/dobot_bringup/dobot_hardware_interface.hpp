@@ -5,6 +5,10 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+#include <thread>
+#include <atomic>
+#include <array>
+#include <cmath>
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/handle.hpp"
@@ -44,8 +48,18 @@ private:
     
     void populate_state_interfaces(const RealTimeData& data);
     void write_command_ServoJ();
+    void write_command_DOGroup();
+    void gpio_nrt_thread_func();
 
     std::shared_ptr<CRCommanderRos2> commander_;
+
+    // GPIO Background Thread
+    double gpio_rw_rate_ = 10.0; // 10Hz default
+    std::thread gpio_nrt_thread_;
+    std::atomic<bool> gpio_nrt_thread_running_;
+    
+    uint16_t gpio_command_rt_ = 0; // for parsing the current command_interfaces for gpios
+    std::atomic<uint16_t> gpio_command_nrt_{0}; // what the gpio thread finally sees
 };
 
 } // namespace dobot_hardware_interface
