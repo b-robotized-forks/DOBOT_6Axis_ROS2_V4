@@ -287,6 +287,11 @@ bool CRCommanderRos2::isEnable() const
     return real_time_data_->robot_mode == 5;
 }
 
+bool CRCommanderRos2::isError() const
+{
+    return real_time_data_->robot_mode == 9;
+}
+
 bool CRCommanderRos2::isConnected() const
 {
     return dash_board_tcp_->isConnect() && real_time_tcp_->isConnect();

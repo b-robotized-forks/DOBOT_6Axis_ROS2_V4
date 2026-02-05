@@ -30,6 +30,8 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
         return hardware_interface::CallbackReturn::ERROR;
     }
 
+    // Fixed to 125Hz, as per documentation, the RT robot state feedback comes every 8ms = 125Hz
+    // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#message-format
     if (info_.rw_rate != 125)
     {
         RCLCPP_FATAL(getLogger(), "Hardware interface loop rate is %u Hz, but 125 Hz is required!", info_.rw_rate);
@@ -69,13 +71,67 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
 {
     RCLCPP_INFO(getLogger(), "Activating Dobot Hardware Interface...");
     
-    // TODO: add enable robot trigger
-    // TODO: Wait a tiny bit.
+    // ROBOT MODES:
+    // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#robotmode
+
+    // Error code descriptions:
+    // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#error-code-descriptions
+    int32_t err_id = 0;
+
+    // Enable Robot
+    RCLCPP_INFO(getLogger(), "Sending EnableRobot() command...");
+    if (!commander_->callRosService("EnableRobot()", err_id)) {
+        RCLCPP_ERROR(getLogger(), "Failed to send EnableRobot request.");
+        return hardware_interface::CallbackReturn::ERROR;
+    }
+    if (err_id != 0) {
+        RCLCPP_WARN(getLogger(), "EnableRobot returned error ID: %d", err_id);
+        return hardware_interface::CallbackReturn::ERROR;
+    }
+
+    // Wait a bit for the robot to enable
+    rclcpp::sleep_for(std::chrono::milliseconds(1000));
+    
     auto data = *commander_->getRealData();
 
-    // TODO: add check if it is enabled
-    // TODO: add clear errors.
-    // Log every step
+    // Check for errors
+    if (commander_->isError())
+    {
+        RCLCPP_WARNING(getLogger(), "Robot is in ERROR state. Sending ClearError()...");
+        if (!commander_->callRosService("ClearError()", err_id)) {
+            RCLCPP_ERROR(getLogger(), "Failed to send ClearError() request.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        if (err_id != 0) {
+            RCLCPP_WARN(getLogger(), "EnableRobot returned error ID: %d", err_id);
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        rclcpp::sleep_for(std::chrono::milliseconds(1000));
+
+        if(commander_->isError()){
+            RCLCPP_ERROR(getLogger(), "Robot is still in ERROR state. Aborting.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        // Enable again
+        RCLCPP_INFO(getLogger(), "Sending EnableRobot() command...");
+        if (!commander_->callRosService("EnableRobot()", err_id)) {
+            RCLCPP_ERROR(getLogger(), "Failed to send EnableRobot request.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        if (err_id != 0) {
+            RCLCPP_WARN(getLogger(), "EnableRobot returned error ID: %d", err_id);
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+    }
+
+    if (!commander_->isEnable()) {
+        RCLCPP_ERROR(getLogger(), "Robot is not Enabled, when expected to be. Robot Mode: %lu", (unsigned long)data.robot_mode);
+        return hardware_interface::CallbackReturn::ERROR;
+    }
+
+    RCLCPP_INFO(getLogger(), "Robot is enabled. Setting state to command...");
 
     // Sync initial commands with current state to avoid jumps
     set_command("joint1/position", data.q_actual[0] * DEG_TO_RAD   );
@@ -106,6 +162,7 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_shutdown(
 hardware_interface::return_type DobotHardwareInterface::read(
     const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+    // if disconnected, unconfigure
     if (!commander_ || !commander_->isConnected() ) return hardware_interface::return_type::ERROR;
 
     populate_state_interfaces(*commander_->getRealData());
@@ -168,7 +225,7 @@ void DobotHardwareInterface::write_command_ServoJ(){
     char cmd_string[128];
         
     std::snprintf(cmd_string, sizeof(cmd_string), 
-        "ServoJ(%.4f,%.4f,%.4f,%.4f,%.4f,%.4f)", 
+        "ServoJ(%.4f,%.4f,%.4f,%.4f,%.4f,%.4f)",
         joint_commands[0] * RAD_TO_DEG,
         joint_commands[1] * RAD_TO_DEG,
         joint_commands[2] * RAD_TO_DEG,

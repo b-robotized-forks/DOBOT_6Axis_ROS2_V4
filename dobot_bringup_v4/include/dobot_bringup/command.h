@@ -148,6 +148,7 @@ public:
     bool callRosService(const std::string cmd, int32_t &err_id, std::vector<std::string> &result_);
     bool isEnable() const;
     bool isConnected() const;
+    bool isError() const;
     uint16_t getRobotMode() const;
     std::shared_ptr<RealTimeData> getRealData() const;
     void tcpSendServoJ(const std::string &cmd);
