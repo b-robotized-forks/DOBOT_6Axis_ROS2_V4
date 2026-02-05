@@ -1,15 +1,15 @@
 <launch>
-  <arg name="configuration_package" default="cr3_moveit" description="The ROS package where we find the configuration files."/>
+  <arg name="robot_type" default="nova2" description="Type of robot: cr[xx], nova[x], me[x]"/>
+  
+  <let name="description_file" value="$(var robot_type)_robot"/>
+  <let name="configuration_package" value="$(var robot_type)_moveit"/>
   <let name="controllers_file_path" value="$(find-pkg-share $(var configuration_package))/config/ros2_controllers.yaml"/>
-  <arg name="description_file" default="cr3_robot" description="URDF/XACRO description file with the robot."/>
-
+  
   <arg name="use_mock_hardware" default="true" description="Whether to use mock hardware or real hardware."/>
   <arg name="start_rviz" default="true" description="Launch RViz visualization?"/>
 
-  
-  
   <arg name="robot_ip" default="" description="IP address of the robot."/>
-
+  
   <let name="robot_description" value="$(command '$(find-exec xacro) $(find-pkg-share $(var configuration_package))/config/$(var description_file).urdf.xacro \
                                         use_mock_hardware:=$(var use_mock_hardware) \
                                         robot_ip:=$(var robot_ip)')"/>

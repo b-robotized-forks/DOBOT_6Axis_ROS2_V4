@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="nova2_robot">
     <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+    <xacro:arg name="use_mock_hardware" default="true" />
+    <xacro:arg name="robot_ip" default="" />
 
     <!-- Import nova2_robot urdf file -->
     <xacro:include filename="$(find dobot_rviz)/urdf/nova2_robot.urdf" />
@@ -9,6 +11,11 @@
     <xacro:include filename="nova2_robot.ros2_control.xacro" />
 
 
-    <xacro:nova2_robot_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/>
+    <xacro:nova2_robot_ros2_control
+        name="dobot_nova2" 
+        robot_ip="$(arg robot_ip)"
+        use_mock_hardware="$(arg use_mock_hardware)"
+        initial_positions_file="$(arg initial_positions_file)"
+    />
 
 </robot>
