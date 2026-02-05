@@ -3,7 +3,8 @@
 
 #include <string>
 #include <vector>
-#include <limits>
+#include <memory>
+#include <mutex>
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/handle.hpp"
@@ -12,14 +13,14 @@
 #include "rclcpp/macros.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
+#include "dobot_bringup/command.h"
+
 namespace dobot_hardware_interface
 {
     
 class DobotHardwareInterface : public hardware_interface::SystemInterface
 {
 public:
-    hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareComponentParams &params);
-
     hardware_interface::CallbackReturn on_configure(
         const rclcpp_lifecycle::State &previous_state) override;
 
@@ -40,6 +41,11 @@ public:
 
 private:
     rclcpp::Logger getLogger() { return rclcpp::get_logger("DobotHardwareInterface"); }
+    
+    void populate_state_interfaces(const RealTimeData& data);
+    void write_command_ServoJ();
+
+    std::shared_ptr<CRCommanderRos2> commander_;
 };
 
 } // namespace dobot_hardware_interface
