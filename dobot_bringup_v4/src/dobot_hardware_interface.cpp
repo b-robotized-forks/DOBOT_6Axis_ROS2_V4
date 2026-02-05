@@ -30,6 +30,12 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
         return hardware_interface::CallbackReturn::ERROR;
     }
 
+    if (info_.rw_rate != 125)
+    {
+        RCLCPP_FATAL(getLogger(), "Hardware interface loop rate is %u Hz, but 125 Hz is required!", info_.rw_rate);
+        return hardware_interface::CallbackReturn::ERROR;
+    }
+
     try 
     {
         commander_ = std::make_shared<CRCommanderRos2>(robot_ip);
@@ -171,10 +177,7 @@ void DobotHardwareInterface::write_command_ServoJ(){
         joint_commands[5] * RAD_TO_DEG
     );
 
-    int32_t err_id = 0;
-    commander_->callRosService(std::string(cmd_string), err_id);
-
-    //TODO: check err_id?
+    commander_->tcpSendServoJ(std::string(cmd_string));
 
     return;
 }

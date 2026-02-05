@@ -9,6 +9,7 @@ CRCommanderRos2::CRCommanderRos2(const std::string &ip)
     real_time_data_ = std::make_shared<RealTimeData>();
     real_time_tcp_ = std::make_shared<TcpClient>(ip, 30004);
     dash_board_tcp_ = std::make_shared<TcpClient>(ip, 29999);
+    motion_tcp_ = std::make_shared<TcpClient>(ip, 30003);
 }
 
 CRCommanderRos2::~CRCommanderRos2()
@@ -90,6 +91,25 @@ void CRCommanderRos2::recvTask()
                 std::cout << "tcp recv ERROR : %s" << std::endl;
                 sleep(3);
             }
+        }
+
+        if (!motion_tcp_->isConnect())
+        {
+            try
+            {
+                motion_tcp_->connect();
+            }
+            catch (const TcpClientException &err)
+            {
+                std::cout << "motion tcp connect ERROR : %s" << std::endl;
+            }
+        }
+        else
+        {
+            // just drain response socket. Timeout 0 for non-blocking check.
+            uint8_t buf[1024];
+            uint32_t read_len = 0;
+            motion_tcp_->tcpRecv(buf, sizeof(buf), read_len, 0); 
         }
     }
 }
@@ -280,4 +300,19 @@ uint16_t CRCommanderRos2::getRobotMode() const
 std::shared_ptr<RealTimeData> CRCommanderRos2::getRealData() const
 {
     return real_time_data_;
+}
+
+void CRCommanderRos2::tcpSendServoJ(const std::string &cmd)
+{
+    if (motion_tcp_ && motion_tcp_->isConnect())
+    {
+        try
+        {
+            motion_tcp_->tcpSend(cmd.c_str(), cmd.length());
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << "ServoJ send failed: " << e.what() << '\n';
+        }
+    }
 }

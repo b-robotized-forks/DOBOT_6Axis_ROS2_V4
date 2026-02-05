@@ -133,6 +133,7 @@ private:
     std::unique_ptr<std::thread> thread_;
     std::shared_ptr<TcpClient> real_time_tcp_;
     std::shared_ptr<TcpClient> dash_board_tcp_;
+    std::shared_ptr<TcpClient> motion_tcp_;
 
 public:
     explicit CRCommanderRos2(const std::string &ip);
@@ -149,6 +150,7 @@ public:
     bool isConnected() const;
     uint16_t getRobotMode() const;
     std::shared_ptr<RealTimeData> getRealData() const;
+    void tcpSendServoJ(const std::string &cmd);
 
 private:
     static void doTcpCmd(std::shared_ptr<TcpClient> &tcp, const char *cmd, int32_t &err_id,
