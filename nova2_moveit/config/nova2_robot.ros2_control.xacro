@@ -57,5 +57,90 @@
             </joint>
 
         </ros2_control>
+
+        <ros2_control name="${name}_gpio" type="system">
+            <hardware>
+                <xacro:if value="${use_mock_hardware}">
+                    <plugin>mock_components/GenericSystem</plugin>
+                </xacro:if>
+                <xacro:unless value="${use_mock_hardware}">
+                    <plugin>dobot_hardware_interface_gpio/DobotHardwareInterfaceGPIO</plugin>
+                    <param name="robot_ip">${robot_ip}</param>
+                </xacro:unless>
+            </hardware>
+
+            <!-- DI - 32 bits of input (from gpio to robot)-->
+            <!-- DO - 16 bits of output + 16 bits to check state (command, from robot to gpio)-->
+            <gpio name="DI">
+                <state_interface name="1"/>
+                <state_interface name="2"/>
+                <state_interface name="3"/>
+                <state_interface name="4"/>
+                <state_interface name="5"/>
+                <state_interface name="6"/>
+                <state_interface name="7"/>
+                <state_interface name="8"/>
+                <state_interface name="9"/>
+                <state_interface name="10"/>
+                <state_interface name="11"/>
+                <state_interface name="12"/>
+                <state_interface name="13"/>
+                <state_interface name="14"/>
+                <state_interface name="15"/>
+                <state_interface name="16"/>
+                <state_interface name="17"/>
+                <state_interface name="18"/>
+                <state_interface name="19"/>
+                <state_interface name="20"/>
+                <state_interface name="21"/>
+                <state_interface name="22"/>
+                <state_interface name="23"/>
+                <state_interface name="24"/>
+                <state_interface name="25"/>
+                <state_interface name="26"/>
+                <state_interface name="27"/>
+                <state_interface name="28"/>
+                <state_interface name="29"/>
+                <state_interface name="30"/>
+                <state_interface name="31"/>
+                <state_interface name="32"/>
+            </gpio>
+            <gpio name="DO">
+                <state_interface name="1"/>
+                <state_interface name="2"/>
+                <state_interface name="3"/>
+                <state_interface name="4"/>
+                <state_interface name="5"/>
+                <state_interface name="6"/>
+                <state_interface name="7"/>
+                <state_interface name="8"/>
+                <state_interface name="9"/>
+                <state_interface name="10"/>
+                <state_interface name="11"/>
+                <state_interface name="12"/>
+                <state_interface name="13"/>
+                <state_interface name="14"/>
+                <state_interface name="15"/>
+                <state_interface name="16"/>
+
+                <command_interface name="1"/>
+                <command_interface name="2"/>
+                <command_interface name="3"/>
+                <command_interface name="4"/>
+                <command_interface name="5"/>
+                <command_interface name="6"/>
+                <command_interface name="7"/>
+                <command_interface name="8"/>
+                <command_interface name="9"/>
+                <command_interface name="10"/>
+                <command_interface name="11"/>
+                <command_interface name="12"/>
+                <command_interface name="13"/>
+                <command_interface name="14"/>
+                <command_interface name="15"/>
+                <command_interface name="16"/>
+            </gpio>
+        </ros2_control>
+
     </xacro:macro>
 </robot>
