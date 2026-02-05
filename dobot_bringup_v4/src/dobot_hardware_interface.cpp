@@ -148,7 +148,19 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_deactivate(
     const rclcpp_lifecycle::State & /*previous_state*/)
 {
     RCLCPP_INFO(getLogger(), "Deactivating Dobot Hardware Interface...");
-    commander_.reset();
+    
+    int32_t err_id = 0;
+    RCLCPP_INFO(getLogger(), "Sending Stop() command...");
+    if (!commander_->callRosService("Stop()", err_id)) {
+        RCLCPP_ERROR(getLogger(), "Failed to send Stop() request. Robot might still be active!");
+    }
+    if (err_id != 0) {
+        RCLCPP_WARN(getLogger(), "Stop() returned error ID: %d. Robot might still be active!", err_id);
+    }
+    
+    // We do not reset the commander here, because we want to maintain the connection
+    // in case of re-activation. The connection is managed in configure/shutdown.
+    
     return hardware_interface::CallbackReturn::SUCCESS;
 }
 
