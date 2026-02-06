@@ -131,9 +131,13 @@ private:
     std::shared_ptr<RealTimeData> real_time_data_;
     std::atomic<bool> is_running_;
     std::unique_ptr<std::thread> thread_;
-    std::shared_ptr<TcpClient> real_time_tcp_;
+    
+    // Protects port 29999. Multiple services may trigger at the same time
+    std::mutex dashboard_mutex_; 
     std::shared_ptr<TcpClient> dash_board_tcp_;
+
     std::shared_ptr<TcpClient> motion_tcp_;
+    std::shared_ptr<TcpClient> real_time_tcp_;
 
 public:
     explicit CRCommanderRos2(const std::string &ip);

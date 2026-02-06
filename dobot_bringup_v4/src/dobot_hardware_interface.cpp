@@ -1,5 +1,3 @@
-#include "dobot_bringup/dobot_hardware_interface.hpp"
-
 #include <limits>
 #include <vector>
 #include <string>
@@ -8,6 +6,9 @@
 
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
+
+#include "dobot_bringup/dobot_hardware_interface.hpp"
+
 
 constexpr double DEG_TO_RAD = M_PI / 180.0;
 constexpr double RAD_TO_DEG = 180.0 / M_PI;
@@ -110,6 +111,14 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
         } else {
             RCLCPP_INFO(getLogger(), "Dobot connected successfully.");
         }
+
+        // Spawn ros services
+        service_node_ = std::make_shared<dobot_bringup::DobotRos2Services>(info_.name, commander_);
+        service_executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+        service_executor_->add_node(service_node_);
+        service_thread_ = std::thread([this]() {
+            service_executor_->spin();
+        });
 
     } 
     catch (const std::exception &e) 
@@ -252,6 +261,16 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_shutdown(
     if (gpio_nrt_thread_.joinable()) {
         gpio_nrt_thread_.join();
     }
+
+    if (service_executor_) {
+        service_executor_->cancel();
+    }
+    if (service_thread_.joinable()) {
+        service_thread_.join();
+    }
+    
+    service_executor_.reset();
+    service_node_.reset();
 
     commander_.reset();
     return hardware_interface::CallbackReturn::SUCCESS;

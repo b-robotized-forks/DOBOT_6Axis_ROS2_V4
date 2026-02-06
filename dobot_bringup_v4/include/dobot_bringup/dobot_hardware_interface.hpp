@@ -18,6 +18,7 @@
 #include "rclcpp_lifecycle/state.hpp"
 
 #include "dobot_bringup/command.h"
+#include "dobot_bringup/dobot_ros2_services.hpp"
 
 namespace dobot_hardware_interface
 {
@@ -65,6 +66,11 @@ private:
     
     uint16_t gpio_command_rt_ = 0; // for parsing the current command_interfaces for gpios
     std::atomic<uint16_t> gpio_command_nrt_{0}; // what the gpio thread finally sees
+
+    // ROS2 services
+    std::shared_ptr<dobot_bringup::DobotRos2Services> service_node_;
+    std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> service_executor_;
+    std::thread service_thread_;
 };
 
 } // namespace dobot_hardware_interface

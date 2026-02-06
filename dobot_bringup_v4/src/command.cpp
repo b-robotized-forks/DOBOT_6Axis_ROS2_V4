@@ -81,6 +81,7 @@ void CRCommanderRos2::recvTask()
 
         if (!dash_board_tcp_->isConnect())
         {
+            std::lock_guard<std::mutex> lock(dashboard_mutex_);
             try
             {
                 dash_board_tcp_->connect();
@@ -239,6 +240,13 @@ void CRCommanderRos2::doTcpCmd_f(std::shared_ptr<TcpClient> &tcp, const char *cm
 
 bool CRCommanderRos2::callRosService(const std::string cmd, int32_t &err_id)
 {
+    std::unique_lock<std::mutex> lock(dashboard_mutex_, std::try_to_lock);
+    if (!lock.owns_lock()) {
+         std::cout << "Another service already processing" << std::endl;
+         err_id = -1;
+         return false;
+    }
+
     try
     {
         std::vector<std::string> result_;
@@ -254,6 +262,13 @@ bool CRCommanderRos2::callRosService(const std::string cmd, int32_t &err_id)
 }
 bool CRCommanderRos2::callRosService_f(const std::string cmd, int32_t &err_id,std::string &mode_id)
 {
+    std::unique_lock<std::mutex> lock(dashboard_mutex_, std::try_to_lock);
+    if (!lock.owns_lock()) {
+         std::cout << "Another service already processing" << std::endl;
+         err_id = -1;
+         return false;
+    }
+
     try
     {
         std::vector<std::string> result_;
@@ -269,6 +284,13 @@ bool CRCommanderRos2::callRosService_f(const std::string cmd, int32_t &err_id,st
 }
 bool CRCommanderRos2::callRosService(const std::string cmd, int32_t &err_id, std::vector<std::string> &result_)
 {
+    std::unique_lock<std::mutex> lock(dashboard_mutex_, std::try_to_lock);
+    if (!lock.owns_lock()) {
+         std::cout << "Another service already processing" << std::endl;
+         err_id = -1;
+         return false;
+    }
+
     try
     {
         doTcpCmd(this->dash_board_tcp_, cmd.c_str(), err_id, result_);
