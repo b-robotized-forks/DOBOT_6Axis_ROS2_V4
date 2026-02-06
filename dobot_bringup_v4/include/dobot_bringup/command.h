@@ -136,6 +136,7 @@ private:
     std::mutex dashboard_mutex_; 
     std::shared_ptr<TcpClient> dash_board_tcp_;
 
+    std::mutex motion_mutex_;
     std::shared_ptr<TcpClient> motion_tcp_;
     std::shared_ptr<TcpClient> real_time_tcp_;
 

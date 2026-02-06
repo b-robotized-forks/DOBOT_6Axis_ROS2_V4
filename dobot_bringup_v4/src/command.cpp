@@ -96,6 +96,7 @@ void CRCommanderRos2::recvTask()
 
         if (!motion_tcp_->isConnect())
         {
+            std::lock_guard<std::mutex> lock(motion_mutex_);
             try
             {
                 motion_tcp_->connect();
@@ -331,6 +332,14 @@ std::shared_ptr<RealTimeData> CRCommanderRos2::getRealData() const
 
 void CRCommanderRos2::tcpSendServoJ(const std::string &cmd)
 {
+    std::unique_lock<std::mutex> lock(motion_mutex_, std::try_to_lock);
+
+    // if lock fails, the background thread is in recvTask() trying to fix the connection.
+    if (!lock.owns_lock()) {
+         std::cerr << "Skipping ServoJ: Motion socket busy/reconnecting" << std::endl;
+         return; 
+    }
+
     if (motion_tcp_ && motion_tcp_->isConnect())
     {
         try
