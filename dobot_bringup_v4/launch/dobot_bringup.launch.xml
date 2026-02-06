@@ -6,7 +6,6 @@
   <let name="controllers_file_path" value="$(find-pkg-share $(var configuration_package))/config/ros2_controllers.yaml"/>
   
   <arg name="use_mock_hardware" default="true" description="Whether to use mock hardware or real hardware."/>
-  <arg name="start_rviz" default="true" description="Launch RViz visualization?"/>
 
   <arg name="robot_ip" default="" description="IP address of the robot."/>
   
@@ -19,12 +18,13 @@
   </node>
 
   <node pkg="controller_manager" exec="ros2_control_node" name="controller_manager" output="both">
-    <param name="update_rate" value="250"/>
     <param from="$(var controllers_file_path)"/>
   </node>
 
   <node pkg="controller_manager" exec="spawner" name="joint_state_broadcaster_spawner" output="screen" args="joint_state_broadcaster -c /controller_manager"/>
+  <node pkg="controller_manager" exec="spawner" name="nova2_group_controller_spawner" output="screen" args="nova2_group_controller -c /controller_manager"/>
 
-  <node if="$(var start_rviz)" pkg="rviz2" exec="rviz2" name="rviz2" output="both" args="-d $(find-pkg-share dobot_rviz)/rviz/urdf.rviz --ros-args --log-level fatal"/>
+  <!--MoveIt-->
+  <include file="$(find-pkg-share $(var robot_type)_moveit)/launch/dobot_moveit.launch.py"/>
 
 </launch>
