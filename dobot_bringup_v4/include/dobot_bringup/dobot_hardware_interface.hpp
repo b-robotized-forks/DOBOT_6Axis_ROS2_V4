@@ -48,6 +48,11 @@ private:
     
     void populate_state_interfaces(const RealTimeData& data);
     void write_command_ServoJ();
+    // ServoJ command parameters
+    double servoJ_t_ = 0.1;
+    double servoJ_lookahead_ = 50;
+    double servoJ_gain_ = 300;
+
     void write_command_DOGroup();
     void gpio_nrt_thread_func();
 

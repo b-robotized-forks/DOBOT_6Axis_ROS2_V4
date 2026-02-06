@@ -11,6 +11,9 @@
                 <xacro:unless value="${use_mock_hardware}">
                     <plugin>dobot_hardware_interface/DobotHardwareInterface</plugin>
                     <param name="robot_ip">${robot_ip}</param>
+                    <param name="servoJ_t">0.01</param>
+                    <param name="servoJ_lookahead">50</param>
+                    <param name="servoJ_gain">300</param>
                 </xacro:unless>
             </hardware>
             <joint name="joint1">

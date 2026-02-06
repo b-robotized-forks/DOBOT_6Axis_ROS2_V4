@@ -67,6 +67,31 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
         gpio_rw_rate_ = 10.0;
     }
 
+    if (info_.hardware_parameters.count("servoJ_t")) {
+        try {
+            servoJ_t_ = std::stod(info_.hardware_parameters.at("servoJ_t"));
+        } catch(const std::invalid_argument& e) {
+            RCLCPP_WARN(getLogger(), "Invalid format for servoJ_t execution time, using default 0.1s");
+        }
+    }
+
+    if (info_.hardware_parameters.count("servoJ_lookahead")) {
+        try {
+            servoJ_lookahead_ = std::stod(info_.hardware_parameters.at("servoJ_lookahead"));
+        } catch(const std::invalid_argument& e) {
+            RCLCPP_WARN(getLogger(), "Invalid format for servoJ_lookahead_, using default 50");
+        }
+    }
+
+    if (info_.hardware_parameters.count("servoJ_gain")) {
+        try {
+            servoJ_gain_ = std::stod(info_.hardware_parameters.at("servoJ_gain"));
+        } catch(const std::invalid_argument& e) {
+            RCLCPP_WARN(getLogger(), "Invalid format for servoJ_gain, using default 300");
+        }
+    }
+
+
     try 
     {
         commander_ = std::make_shared<CRCommanderRos2>(robot_ip);
@@ -315,13 +340,16 @@ void DobotHardwareInterface::write_command_ServoJ(){
     char cmd_string[128];
         
     std::snprintf(cmd_string, sizeof(cmd_string), 
-        "ServoJ(%.4f,%.4f,%.4f,%.4f,%.4f,%.4f)",
+        "ServoJ(%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,t=%.4f,lookahead=%.0f,gain=%.0f)",
         joint_commands[0] * RAD_TO_DEG,
         joint_commands[1] * RAD_TO_DEG,
         joint_commands[2] * RAD_TO_DEG,
         joint_commands[3] * RAD_TO_DEG,
         joint_commands[4] * RAD_TO_DEG,
-        joint_commands[5] * RAD_TO_DEG
+        joint_commands[5] * RAD_TO_DEG,
+        servoJ_t_,
+        servoJ_lookahead_,
+        servoJ_gain_
     );
 
     commander_->tcpSendServoJ(std::string(cmd_string));
