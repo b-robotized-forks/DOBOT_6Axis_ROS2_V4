@@ -293,7 +293,10 @@ hardware_interface::return_type DobotHardwareInterface::write(
     // if disconnected, unconfigure
     if (!commander_ || !commander_->isConnected() ) return hardware_interface::return_type::ERROR; 
     // if disabled, deactivate
-    if (!commander_->isEnable()) return hardware_interface::return_type::DEACTIVATE;
+    if (!commander_->isEnable()) {
+        RCLCPP_WARN(getLogger(), "IsEnable =false, robot_mode = %lu", commander_->getRealData()->robot_mode);
+        return hardware_interface::return_type::DEACTIVATE;
+    }
 
     write_command_ServoJ();
     write_command_DOGroup();
