@@ -244,8 +244,16 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_deactivate(
 
     if (commander_) {
         int32_t err_id = 0;
-        RCLCPP_INFO(getLogger(), "Sending Stop() command...");
-        commander_->callRosService("Stop()", err_id);
+        RCLCPP_INFO(getLogger(), "Sending DisableRobot() command...");
+
+        if (!commander_->callRosService("DisableRobot()", err_id)) {
+            RCLCPP_ERROR(getLogger(), "Failed to send DisableRobot request. Robot might still be enabled!");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        if (err_id != 0) {
+            RCLCPP_WARN(getLogger(), "DisableRobot returned error ID: %d", err_id);
+            return hardware_interface::CallbackReturn::ERROR;
+        }
     }
     
     // We do NOT reset the commander here, because we want to maintain the connection
