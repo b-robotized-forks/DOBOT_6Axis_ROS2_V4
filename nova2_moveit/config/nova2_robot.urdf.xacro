@@ -4,18 +4,53 @@
     <xacro:arg name="use_mock_hardware" default="true" />
     <xacro:arg name="robot_ip" default="" />
 
+    <!-- gripper args -->
+    <xacro:arg name="serial_port" default="/dev/ttyUSB0" />
+    <xacro:arg name="baud_rate" default="1000000" />
+    <xacro:arg name="servo_id" default="22" />
+    <xacro:arg name="servo_open_step" default="2048" />
+    <xacro:arg name="servo_closed_step" default="3998" />
+    <xacro:arg name="gripper_open_pos" default="0.05" />
+    <xacro:arg name="gripper_closed_pos" default="0.0" />
+    <xacro:arg name="servo_speed" default="1.0" />
+    <xacro:arg name="servo_acceleration" default="1.0" />
+
+
     <!-- Import nova2_robot urdf file -->
     <xacro:include filename="$(find dobot_rviz)/urdf/nova2_robot.urdf" />
 
     <!-- Import control_xacro -->
     <xacro:include filename="nova2_robot.ros2_control.xacro" />
 
-
     <xacro:nova2_robot_ros2_control
         name="dobot_nova2" 
         robot_ip="$(arg robot_ip)"
         use_mock_hardware="$(arg use_mock_hardware)"
         initial_positions_file="$(arg initial_positions_file)"
+    />
+
+    <xacro:include filename="$(find feetech_servo_bringup)/urdf/feetech_gripper_macro.ros2_control.xacro" />
+    <xacro:include filename="$(find feetech_servo_bringup)/urdf/feetech_gripper_macro.xacro" />
+    <!-- Feetech servo gripper -->
+    <xacro:feetech_gripper
+        parent="Link6"
+        prefix=""
+        >
+        <origin xyz="0 0.0 0" rpy="0 0 0" />
+    </xacro:feetech_gripper>
+
+    <xacro:feetech_gripper_ros2_control
+        name="nova2_gripper"
+        mock_hardware="$(arg use_mock_hardware)"
+        serial_port="$(arg serial_port)"
+        baud_rate="$(arg baud_rate)"
+        servo_id="$(arg servo_id)"
+        servo_open_step="$(arg servo_open_step)"
+        servo_closed_step="$(arg servo_closed_step)"
+        gripper_open_pos="$(arg gripper_open_pos)"
+        gripper_closed_pos="$(arg gripper_closed_pos)"
+        servo_speed="$(arg servo_speed)"
+        servo_acceleration="$(arg servo_acceleration)"
     />
 
 </robot>

@@ -6,9 +6,11 @@ controller_manager:
     nova2_group_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
-
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
+    
+    feetech_gripper_controller:
+      type: parallel_gripper_action_controller/GripperActionController
 
 nova2_group_controller:
   ros__parameters:
@@ -24,3 +26,13 @@ nova2_group_controller:
     state_interfaces:
       - position
       - velocity
+
+feetech_gripper_controller:
+  ros__parameters:
+    joint: GRIPPER_FINGER_LEFT
+    goal_tolerance: 0.02
+
+    #max_effort: 0.0 Tune if necessary
+    allow_stalling: true
+    stall_timeout: 0.05
+    

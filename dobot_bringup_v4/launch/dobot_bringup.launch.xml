@@ -8,10 +8,31 @@
   <arg name="use_mock_hardware" default="true" description="Whether to use mock hardware or real hardware."/>
 
   <arg name="robot_ip" default="" description="IP address of the robot."/>
+
+  <!-- gripper args -->
+  <arg name="serial_port" default="/dev/ttyUSB0" />
+  <arg name="baud_rate" default="1000000" />
+  <arg name="servo_id" default="22" />
+  <arg name="servo_open_step" default="2048" />
+  <arg name="servo_closed_step" default="3998" />
+  <arg name="gripper_open_pos" default="0.05" />
+  <arg name="gripper_closed_pos" default="0.0" />
+  <arg name="servo_speed" default="1.0" />
+  <arg name="servo_acceleration" default="1.0" />
   
   <let name="robot_description" value="$(command '$(find-exec xacro) $(find-pkg-share $(var configuration_package))/config/$(var description_file).urdf.xacro \
                                         use_mock_hardware:=$(var use_mock_hardware) \
-                                        robot_ip:=$(var robot_ip)')"/>
+                                        robot_ip:=$(var robot_ip)
+                                        serial_port:=$(var serial_port)
+                                        baud_rate:=$(var baud_rate) 
+                                        servo_id:=$(var servo_id) 
+                                        servo_open_step:=$(var servo_open_step)
+                                        servo_closed_step:=$(var servo_closed_step) 
+                                        gripper_open_pos:=$(var gripper_open_pos)
+                                        gripper_closed_pos:=$(var gripper_closed_pos)
+                                        servo_speed:=$(var servo_speed)
+                                        servo_acceleration:=$(var servo_acceleration)
+                                        ')"/>
 
   <node pkg="robot_state_publisher" exec="robot_state_publisher" output="both">
     <param name="robot_description" value="$(var robot_description)"/>
@@ -23,8 +44,12 @@
 
   <node pkg="controller_manager" exec="spawner" name="joint_state_broadcaster_spawner" output="screen" args="joint_state_broadcaster -c /controller_manager"/>
   <node pkg="controller_manager" exec="spawner" name="nova2_group_controller_spawner" output="screen" args="nova2_group_controller -c /controller_manager"/>
-
+  <node pkg="controller_manager" exec="spawner" name="feetech_gripper_controller_spawner" output="screen" args="feetech_gripper_controller -c /controller_manager"/>
+  
+  <node pkg="rviz2" exec="rviz2" name="rviz2" output="both" args="-d $(find-pkg-share dobot_rviz)/rviz/urdf.rviz"/>
+  <!-- <node pkg="joint_state_publisher_gui" exec="joint_state_publisher_gui" name="joint_state_publisher_node"/> -->
+  
   <!--MoveIt-->
-  <include file="$(find-pkg-share $(var robot_type)_moveit)/launch/dobot_moveit.launch.py"/>
+  <!-- <include file="$(find-pkg-share $(var robot_type)_moveit)/launch/dobot_moveit.launch.py"/> -->
 
 </launch>
