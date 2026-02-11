@@ -31,11 +31,11 @@ inline bool bit_get(uint16_t state, int index) {
 hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
     const rclcpp_lifecycle::State & /*previous_state*/)
 {   
-    // Fixed to 125Hz, as per documentation, the RT robot state feedback comes every 8ms = 125Hz
+    // Capped to 33Hz, as per documentation
     // https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#message-format
-    if (info_.rw_rate != 125)
+    if (info_.rw_rate > 33)
     {
-        RCLCPP_FATAL(getLogger(), "Hardware interface loop rate is %u Hz, but 125 Hz is required!", info_.rw_rate);
+        RCLCPP_FATAL(getLogger(), "Hardware interface loop rate is %u Hz, but maximum 33 Hz is supported!", info_.rw_rate);
         return hardware_interface::CallbackReturn::ERROR;
     }
 
