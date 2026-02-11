@@ -10,8 +10,17 @@
     <!--CHAINS: When a chain is specified, all the links along the chain (including endpoints) are included in the group. Additionally, all the joints that are parents to included links are also included. This means that joints along the chain and the parent joint of the base link are included in the group-->
     <!--SUBGROUPS: Groups can also be formed by referencing to already defined group names-->
     <group name="nova2_group">
-        <chain base_link="base_link" tip_link="Link6"/>
+        <chain base_link="base_link" tip_link="tool_center"/>
     </group>
+    <group name="nova2_gripper">
+        <link name="GRIPPER_HAND"/>
+        <link name="LINK_GRIPPER_FINGER_LEFT"/>
+        <link name="LINK_GRIPPER_FINGER_RIGHT"/>
+        <joint name="GRIPPER_FINGER_LEFT"/> 
+    </group>
+
+    <end_effector name="hand" parent_link="tool_center" group="nova2_gripper" parent_group="nova2_group"/>
+
     <!--GROUP STATES: Purpose: Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
     <group_state name="home" group="nova2_group">
         <joint name="joint1" value="0"/>
@@ -33,4 +42,9 @@
     <disable_collisions link1="Link4" link2="Link5" reason="Adjacent"/>
     <disable_collisions link1="Link4" link2="Link6" reason="Never"/>
     <disable_collisions link1="Link5" link2="Link6" reason="Adjacent"/>
+
+    <disable_collisions link1="Link6" link2="GRIPPER_HAND" reason="Adjacent"/>
+    <disable_collisions link1="GRIPPER_HAND" link2="LINK_GRIPPER_FINGER_LEFT" reason="Adjacent"/>
+    <disable_collisions link1="GRIPPER_HAND" link2="LINK_GRIPPER_FINGER_RIGHT" reason="Adjacent"/>
+    
 </robot>

@@ -46,10 +46,10 @@
   <node pkg="controller_manager" exec="spawner" name="nova2_group_controller_spawner" output="screen" args="nova2_group_controller -c /controller_manager"/>
   <node pkg="controller_manager" exec="spawner" name="feetech_gripper_controller_spawner" output="screen" args="feetech_gripper_controller -c /controller_manager"/>
   
-  <node pkg="rviz2" exec="rviz2" name="rviz2" output="both" args="-d $(find-pkg-share dobot_rviz)/rviz/urdf.rviz"/>
+  <!-- <node pkg="rviz2" exec="rviz2" name="rviz2" output="both" args="-d $(find-pkg-share dobot_rviz)/rviz/urdf.rviz"/> -->
   <!-- <node pkg="joint_state_publisher_gui" exec="joint_state_publisher_gui" name="joint_state_publisher_node"/> -->
   
   <!--MoveIt-->
-  <!-- <include file="$(find-pkg-share $(var robot_type)_moveit)/launch/dobot_moveit.launch.py"/> -->
+  <include file="$(find-pkg-share $(var robot_type)_moveit)/launch/dobot_moveit.launch.py"/>
 
 </launch>
