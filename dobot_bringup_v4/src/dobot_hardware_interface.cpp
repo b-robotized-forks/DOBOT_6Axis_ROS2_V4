@@ -133,103 +133,113 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
     const rclcpp_lifecycle::State & /*previous_state*/)
 {
     RCLCPP_INFO(getLogger(), "Activating Dobot Hardware Interface...");
-    
-    int32_t err_id = 0;
 
-    // Enable Robot
-    RCLCPP_INFO(getLogger(), "Sending EnableRobot() command...");
-    if (!commander_->callRosService("EnableRobot()", err_id)) {
-        RCLCPP_ERROR(getLogger(), "Failed to send EnableRobot request.");
-        return hardware_interface::CallbackReturn::ERROR;
-    }
-    if (err_id != 0) {
-        RCLCPP_WARN(getLogger(), "EnableRobot returned error ID: %d", err_id);
-        return hardware_interface::CallbackReturn::ERROR;
-    }
+    enum class RobotMode : int {
+        INIT = 1,
+        BRAKE_OPEN = 2,
+        POWER_OFF = 3,
+        DISABLED = 4,
+        ENABLE = 5,    // Ready
+        BACKDRIVE = 6,
+        RUNNING = 7,
+        ERROR = 9
+    };
 
-    // Wait a bit for the robot to enable
-    rclcpp::sleep_for(std::chrono::milliseconds(1000));
-    
-    auto data = *commander_->getRealData();
-
-    int retries = 0;
-    while(retries < 10)
-    {
-        data = *commander_->getRealData();
-        if(data.len > 0) break;
-        rclcpp::sleep_for(std::chrono::milliseconds(100));
-        retries++;
-    }
-
-    if(retries >= 10)
-    {
-        RCLCPP_ERROR(getLogger(), "Could not get valid RealTimeData for Activation.");
-        return hardware_interface::CallbackReturn::ERROR;
-    }
-
-    // Check for errors
-    if (data.robot_mode == 9)
-    {
-        RCLCPP_WARN(getLogger(), "Robot is in ERROR state. Sending ClearError()...");
-        if (!commander_->callRosService("ClearError()", err_id)) {
-            RCLCPP_ERROR(getLogger(), "Failed to send ClearError() request.");
-            return hardware_interface::CallbackReturn::ERROR;
+    auto send_command = [&](const std::string& command) -> bool {
+        int32_t err_id = 0;
+        if (!commander_->callRosService(command, err_id)) {
+            RCLCPP_ERROR(getLogger(), "Failed to call service: %s", command.c_str());
+            return false;
         }
         if (err_id != 0) {
-            RCLCPP_WARN(getLogger(), "EnableRobot returned error ID: %d", err_id);
-            return hardware_interface::CallbackReturn::ERROR;
+            RCLCPP_WARN(getLogger(), "Service %s returned error ID: %d", command.c_str(), err_id);
+            return false;
+        }
+        return true;
+    };
+
+    send_command("ClearError()");
+    send_command("PowerOn()");
+
+    const double timeout_seconds = 120.0;
+    auto start_time = std::chrono::steady_clock::now();
+
+    while (true) {
+        auto now = std::chrono::steady_clock::now();
+        double elapsed = std::chrono::duration<double>(now - start_time).count();
+        if (elapsed > timeout_seconds) {
+            RCLCPP_ERROR(getLogger(), "Activation timed out after %.1f seconds.", timeout_seconds);
+            return CallbackReturn::ERROR;
         }
 
-        rclcpp::sleep_for(std::chrono::milliseconds(1000));
-
-        if(commander_->getRealData()->robot_mode == 9){
-            RCLCPP_ERROR(getLogger(), "Robot is still in ERROR state. Aborting.");
-            return hardware_interface::CallbackReturn::ERROR;
+        // read rt data
+        std::shared_ptr<RealTimeData> data = commander_->getRealData();
+        if (!data || data->len <= 0) {
+            RCLCPP_WARN(getLogger(), "Waiting for valid RealTimeData...");
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            continue;
         }
 
-        // Enable again
-        RCLCPP_INFO(getLogger(), "Sending EnableRobot() command...");
-        if (!commander_->callRosService("EnableRobot()", err_id)) {
-            RCLCPP_ERROR(getLogger(), "Failed to send EnableRobot request.");
-            return hardware_interface::CallbackReturn::ERROR;
+        RobotMode current_mode = static_cast<RobotMode>(data->robot_mode);
+
+        switch (current_mode) {
+            case RobotMode::POWER_OFF:
+                RCLCPP_INFO(getLogger(), "Robot in POWER_OFF. Sending ClearError() and PowerOn()...");
+                send_command("ClearError()");
+                send_command("PowerOn()");
+                RCLCPP_INFO(getLogger(), "Waiting 3s for state transition...");
+                std::this_thread::sleep_for(std::chrono::seconds(3));
+                break;
+
+            case RobotMode::DISABLED:
+                RCLCPP_INFO(getLogger(), "Robot is DISABLED. Sending EnableRobot()...");
+                send_command("EnableRobot()");
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                break;
+
+            case RobotMode::ERROR:
+                RCLCPP_WARN(getLogger(), "Robot in ERROR state. Clearing errors...");
+                send_command("GetErrorID()"); 
+                send_command("ClearError()");
+                send_command("PowerOn()");
+                RCLCPP_INFO(getLogger(), "Waiting 3s for state transition...");
+                std::this_thread::sleep_for(std::chrono::seconds(3));
+                break;
+            
+            case RobotMode::ENABLE:
+                RCLCPP_INFO(getLogger(), "Robot is in ENABLE (Ready) mode. Setting state to command...");
+
+                // Sync initial commands with current state to avoid jumps
+                set_command("joint1/position", data->q_actual[0] * DEG_TO_RAD   );
+                set_command("joint2/position", data->q_actual[1] * DEG_TO_RAD   );
+                set_command("joint3/position", data->q_actual[2] * DEG_TO_RAD   );
+                set_command("joint4/position", data->q_actual[3] * DEG_TO_RAD   );
+                set_command("joint5/position", data->q_actual[4] * DEG_TO_RAD   );
+                set_command("joint6/position", data->q_actual[5] * DEG_TO_RAD   );
+
+                // Sync initial GPIO state
+                // digital_outputs is uint64_t where bit 0 is DO1.
+
+                gpio_command_rt_ = static_cast<uint16_t>(data->digital_outputs & 0xFFFF);
+                for (int i = 0; i < 16; ++i)
+                {
+                    double val = (gpio_command_rt_ & (1 << i)) ? 1.0 : 0.0;
+                    set_command("DO/" + std::to_string(i + 1), val);
+                }
+                gpio_command_nrt_.store(gpio_command_rt_, std::memory_order_relaxed);
+
+                // Start GPIO thread
+                gpio_nrt_thread_running_ = true;
+                gpio_nrt_thread_ = std::thread(&DobotHardwareInterface::gpio_nrt_thread_func, this);
+
+                return hardware_interface::CallbackReturn::SUCCESS;
+
+            default:
+                RCLCPP_INFO(getLogger(), "Waiting... Current Mode: %d", static_cast<int>(current_mode));
+                break;
         }
-        if (err_id != 0) {
-            RCLCPP_WARN(getLogger(), "EnableRobot returned error ID: %d", err_id);
-            return hardware_interface::CallbackReturn::ERROR;
-        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-
-    if (!commander_->isEnable()) {
-        RCLCPP_ERROR(getLogger(), "Robot is not Enabled, when expected to be. Robot Mode: %lu", (unsigned long)data.robot_mode);
-        return hardware_interface::CallbackReturn::ERROR;
-    }
-
-    RCLCPP_INFO(getLogger(), "Robot is enabled. Setting state to command...");
-
-    // Sync initial commands with current state to avoid jumps
-    set_command("joint1/position", data.q_actual[0] * DEG_TO_RAD   );
-    set_command("joint2/position", data.q_actual[1] * DEG_TO_RAD   );
-    set_command("joint3/position", data.q_actual[2] * DEG_TO_RAD   );
-    set_command("joint4/position", data.q_actual[3] * DEG_TO_RAD   );
-    set_command("joint5/position", data.q_actual[4] * DEG_TO_RAD   );
-    set_command("joint6/position", data.q_actual[5] * DEG_TO_RAD   );
-
-    // Sync initial GPIO state
-    // digital_outputs is uint64_t where bit 0 is DO1.
-
-    gpio_command_rt_ = static_cast<uint16_t>(data.digital_outputs & 0xFFFF);
-    for (int i = 0; i < 16; ++i)
-    {
-        double val = (gpio_command_rt_ & (1 << i)) ? 1.0 : 0.0;
-        set_command("DO/" + std::to_string(i + 1), val);
-    }
-    gpio_command_nrt_.store(gpio_command_rt_, std::memory_order_relaxed);
-
-    // Start GPIO thread
-    gpio_nrt_thread_running_ = true;
-    gpio_nrt_thread_ = std::thread(&DobotHardwareInterface::gpio_nrt_thread_func, this);
-
-    return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn DobotHardwareInterface::on_deactivate(

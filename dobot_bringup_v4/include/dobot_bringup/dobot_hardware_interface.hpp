@@ -9,6 +9,7 @@
 #include <atomic>
 #include <array>
 #include <cmath>
+#include <chrono>
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/handle.hpp"
@@ -45,7 +46,7 @@ public:
         const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
 private:
-    rclcpp::Logger getLogger() { return rclcpp::get_logger("DobotHardwareInterface"); }
+    rclcpp::Logger getLogger() { return rclcpp::get_logger(info_.name); }
     
     void populate_state_interfaces(const RealTimeData& data);
     void write_command_ServoJ();
