@@ -92,6 +92,12 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_configure(
         }
     }
 
+    if (info_.hardware_parameters.count("prefix"))
+    {
+        prefix_ = info_.hardware_parameters.at("prefix");
+        RCLCPP_INFO(getLogger(), "Using prefix: %s", prefix_.c_str());
+    }
+
 
     try 
     {
@@ -210,12 +216,12 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
                 RCLCPP_INFO(getLogger(), "Robot is in ENABLE (Ready) mode. Setting state to command...");
 
                 // Sync initial commands with current state to avoid jumps
-                set_command("joint1/position", data->q_actual[0] * DEG_TO_RAD   );
-                set_command("joint2/position", data->q_actual[1] * DEG_TO_RAD   );
-                set_command("joint3/position", data->q_actual[2] * DEG_TO_RAD   );
-                set_command("joint4/position", data->q_actual[3] * DEG_TO_RAD   );
-                set_command("joint5/position", data->q_actual[4] * DEG_TO_RAD   );
-                set_command("joint6/position", data->q_actual[5] * DEG_TO_RAD   );
+                set_command(prefix_ + "joint1/position", data->q_actual[0] * DEG_TO_RAD   );
+                set_command(prefix_ + "joint2/position", data->q_actual[1] * DEG_TO_RAD   );
+                set_command(prefix_ + "joint3/position", data->q_actual[2] * DEG_TO_RAD   );
+                set_command(prefix_ + "joint4/position", data->q_actual[3] * DEG_TO_RAD   );
+                set_command(prefix_ + "joint5/position", data->q_actual[4] * DEG_TO_RAD   );
+                set_command(prefix_ + "joint6/position", data->q_actual[5] * DEG_TO_RAD   );
 
                 // Sync initial GPIO state
                 // digital_outputs is uint64_t where bit 0 is DO1.
@@ -224,7 +230,7 @@ hardware_interface::CallbackReturn DobotHardwareInterface::on_activate(
                 for (int i = 0; i < 16; ++i)
                 {
                     double val = (gpio_command_rt_ & (1 << i)) ? 1.0 : 0.0;
-                    set_command("DO/" + std::to_string(i + 1), val);
+                    set_command(prefix_ + "DO/" + std::to_string(i + 1), val);
                 }
                 gpio_command_nrt_.store(gpio_command_rt_, std::memory_order_relaxed);
 
@@ -328,26 +334,26 @@ void DobotHardwareInterface::populate_state_interfaces(const RealTimeData& data)
     // https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/83aeea4c836849d0c5c0557810ec25e8b33ae9bd/ur_robot_driver/src/hardware_interface.cpp#L251-L262
 
     // later we add more and get smarter about populating this data.
-    set_state("joint1/position", data.q_actual[0] * DEG_TO_RAD   );
-    set_state("joint2/position", data.q_actual[1] * DEG_TO_RAD   );
-    set_state("joint3/position", data.q_actual[2] * DEG_TO_RAD   );
-    set_state("joint4/position", data.q_actual[3] * DEG_TO_RAD   );
-    set_state("joint5/position", data.q_actual[4] * DEG_TO_RAD   );
-    set_state("joint6/position", data.q_actual[5] * DEG_TO_RAD   );
+    set_state(prefix_ + "joint1/position", data.q_actual[0] * DEG_TO_RAD   );
+    set_state(prefix_ + "joint2/position", data.q_actual[1] * DEG_TO_RAD   );
+    set_state(prefix_ + "joint3/position", data.q_actual[2] * DEG_TO_RAD   );
+    set_state(prefix_ + "joint4/position", data.q_actual[3] * DEG_TO_RAD   );
+    set_state(prefix_ + "joint5/position", data.q_actual[4] * DEG_TO_RAD   );
+    set_state(prefix_ + "joint6/position", data.q_actual[5] * DEG_TO_RAD   );
 
-    set_state("joint1/velocity", data.qd_actual[0] * DEG_TO_RAD  );
-    set_state("joint2/velocity", data.qd_actual[1] * DEG_TO_RAD  );
-    set_state("joint3/velocity", data.qd_actual[2] * DEG_TO_RAD  );
-    set_state("joint4/velocity", data.qd_actual[3] * DEG_TO_RAD  );
-    set_state("joint5/velocity", data.qd_actual[4] * DEG_TO_RAD  );
-    set_state("joint6/velocity", data.qd_actual[5] * DEG_TO_RAD  );
+    set_state(prefix_ + "joint1/velocity", data.qd_actual[0] * DEG_TO_RAD  );
+    set_state(prefix_ + "joint2/velocity", data.qd_actual[1] * DEG_TO_RAD  );
+    set_state(prefix_ + "joint3/velocity", data.qd_actual[2] * DEG_TO_RAD  );
+    set_state(prefix_ + "joint4/velocity", data.qd_actual[3] * DEG_TO_RAD  );
+    set_state(prefix_ + "joint5/velocity", data.qd_actual[4] * DEG_TO_RAD  );
+    set_state(prefix_ + "joint6/velocity", data.qd_actual[5] * DEG_TO_RAD  );
 
     // Populate DI state
     uint64_t di_bits = data.digital_input_bits;
     for (int i = 0; i < 32; ++i)
     {
         double val = (di_bits & (1ULL << i)) ? 1.0 : 0.0;
-        set_state("DI/" + std::to_string(i + 1), val);
+        set_state(prefix_ + "DI/" + std::to_string(i + 1), val);
     }
 
     // Populate DO state feedback
@@ -355,7 +361,7 @@ void DobotHardwareInterface::populate_state_interfaces(const RealTimeData& data)
     for (int i = 0; i < 16; ++i)
     {
         double val = (do_bits & (1ULL << i)) ? 1.0 : 0.0;
-        set_state("DO/" + std::to_string(i + 1), val);
+        set_state(prefix_ + "DO/" + std::to_string(i + 1), val);
     }
 
     return;
@@ -364,12 +370,12 @@ void DobotHardwareInterface::populate_state_interfaces(const RealTimeData& data)
 void DobotHardwareInterface::write_command_ServoJ(){
 
     std::array<double, 6> joint_commands;
-    joint_commands[0] = get_command("joint1/position");
-    joint_commands[1] = get_command("joint2/position");
-    joint_commands[2] = get_command("joint3/position");
-    joint_commands[3] = get_command("joint4/position");
-    joint_commands[4] = get_command("joint5/position");
-    joint_commands[5] = get_command("joint6/position");
+    joint_commands[0] = get_command(prefix_ + "joint1/position");
+    joint_commands[1] = get_command(prefix_ + "joint2/position");
+    joint_commands[2] = get_command(prefix_ + "joint3/position");
+    joint_commands[3] = get_command(prefix_ + "joint4/position");
+    joint_commands[4] = get_command(prefix_ + "joint5/position");
+    joint_commands[5] = get_command(prefix_ + "joint6/position");
 
     for (size_t i = 0; i < 6; ++i)
     {
@@ -405,7 +411,7 @@ void DobotHardwareInterface::write_command_DOGroup()
     // check if any bits should be updated
     for (int i = 0; i < 16; ++i)
     {
-        double val = get_command("DO/" + std::to_string(i + 1));
+        double val = get_command(prefix_ + "DO/" + std::to_string(i + 1));
 
         // If command is valid (not NaN), apply it to our state
         if (!std::isnan(val))

@@ -54,6 +54,8 @@ private:
     double servoJ_t_ = 0.1;
     double servoJ_lookahead_ = 50;
     double servoJ_gain_ = 300;
+    // Prefix from urdf, so we can correctly namespace joint/gpios in multi-robot scenarios
+    std::string prefix_ = ""; 
 
     void write_command_DOGroup();
     void gpio_nrt_thread_func();
