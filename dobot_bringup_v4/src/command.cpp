@@ -41,12 +41,18 @@ void CRCommanderRos2::recvTask()
         {
             try
             {
-                uint8_t *tmpData = reinterpret_cast<uint8_t *>(real_time_data_.get());
+                uint8_t *tmpData = reinterpret_cast<uint8_t *>(&staging_buffer_);
                 if (real_time_tcp_->tcpRecv(tmpData, sizeof(RealTimeData), has_read, 5000))
                 {
 
-                    if (real_time_data_->len != 1440)
+                    if (staging_buffer_.len != 1440)
                         continue;
+
+                    // Copy the complete, consistent snapshot under lock
+                    {
+                        std::lock_guard<std::mutex> rt_lock(rt_data_mutex_);
+                        std::memcpy(real_time_data_.get(), &staging_buffer_, sizeof(RealTimeData));
+                    }
 
                     mutex_.lock();
                     for (uint32_t i = 0; i < 6; i++)
@@ -330,6 +336,12 @@ uint16_t CRCommanderRos2::getRobotMode() const
 std::shared_ptr<RealTimeData> CRCommanderRos2::getRealData() const
 {
     return real_time_data_;
+}
+
+RealTimeData CRCommanderRos2::getRealDataCopy() const
+{
+    std::lock_guard<std::mutex> lock(rt_data_mutex_);
+    return *real_time_data_;
 }
 
 void CRCommanderRos2::tcpSendServoJ(const std::string &cmd)

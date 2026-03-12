@@ -129,6 +129,8 @@ private:
     double current_joint_[6];
     double tool_vector_[6];
     std::shared_ptr<RealTimeData> real_time_data_;
+    RealTimeData staging_buffer_;          // recvTask writes here first
+    mutable std::mutex rt_data_mutex_;     // protects real_time_data_ from concurrent read/write
     std::atomic<bool> is_running_;
     std::unique_ptr<std::thread> thread_;
     
@@ -156,6 +158,7 @@ public:
     bool isError() const;
     uint16_t getRobotMode() const;
     std::shared_ptr<RealTimeData> getRealData() const;
+    RealTimeData getRealDataCopy() const;
     void tcpSendServoJ(const std::string &cmd);
 
 private:
